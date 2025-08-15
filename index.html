@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pro Dress Customizer — Text Tool + External Fonts</title>
+
+  <!-- Bootstrap 5.3.x -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Font Awesome 6.x -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+
+  <style>
+    :root{
+      --bg:#0f1221; --card:#151936; --muted:#a9b0cb; --accent:#6ee7ff; --accent-2:#a78bfa; --ring: 0 0 0 .25rem rgba(110,231,255,.25);
+    }
+    html,body{height:100%}
+    body{background: radial-gradient(1200px 600px at 10% -10%, #1b2251, transparent),
+                       radial-gradient(900px 500px at 110% 10%, #221d57, transparent),
+                       var(--bg); color:#e6e9ff;}
+    .navbar{background: linear-gradient(180deg, #111533, #0d1029); border-bottom:1px solid #1f244d;}
+    .brand-badge{background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:800}
+
+    .workspace{display:grid; grid-template-columns: 1fr 420px; gap:1rem;}
+    @media (max-width: 1200px){ .workspace{grid-template-columns: 1fr;} }
+
+    .stage-card{background: linear-gradient(180deg, #151936, #111533); border:1px solid #1e2351; box-shadow: 0 10px 30px rgba(0,0,0,.35);} 
+    .panel-card{background: linear-gradient(180deg, #161a3a, #13173a); border:1px solid #1f2550}
+
+    .stage-boards{display:grid; grid-template-columns: 1fr 1fr; gap:1rem}
+    .board{position:relative; aspect-ratio: 4/5; width:100%; border-radius:1rem; overflow:hidden; background:#0b0f2a; border:1px solid #1e2351}
+    canvas{display:block; width:100%; height:100%}
+
+    .side-label{position:absolute; top:.5rem; left:.5rem; z-index:2; background:#0a0f34; border:1px solid #27306b; padding:.2rem .5rem; border-radius:.5rem}
+
+    .toolbar-chip{background:#0f1330; border:1px solid #262b63; color:#dae0ff; padding:.35rem .6rem; border-radius:999px; display:inline-flex; align-items:center; gap:.4rem}
+    .pill{border-radius:999px}
+
+    .thumb{border:1px solid #2a2f66; background:#0e1231; border-radius:.75rem; padding:.5rem; cursor:pointer; transition:transform .15s ease}
+    .thumb:hover{transform:translateY(-2px)}
+    .thumb img{max-width:100%; height:72px; object-fit:contain}
+
+    .design-item{background:#0d1130; border:1px solid #2a2f66; border-radius:.75rem; padding:.5rem}
+    .active-design{outline:2px solid var(--accent); outline-offset: 2px}
+
+    .list-scroll{max-height: 340px; overflow:auto}
+    .badge-side{background:#10153a; border:1px solid #2a2f66}
+    .spinner-center{ position:absolute; inset:0; display:grid; place-items:center; background:rgba(6,8,28,.55); backdrop-filter: blur(2px); }
+
+    /* checker only for on-screen preview; exports are transparent */
+    .checker{background-image: linear-gradient(45deg, #0a0e29 25%, transparent 25%),
+                               linear-gradient(-45deg, #0a0e29 25%, transparent 25%),
+                               linear-gradient(45deg, transparent 75%, #0a0e29 75%),
+                               linear-gradient(-45deg, transparent 75%, #0a0e29 75%);
+             background-size: 24px 24px; background-position: 0 0, 0 12px, 12px -12px, -12px 0px;}
+
+    /* small control tweaks */
+    .control-label{font-size:.75rem;color:#aeb6da}
+    textarea.form-control{min-height: 88px; resize: vertical;}
+  </style>
+</head>
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar navbar-expand-lg sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold brand-badge" href="#">Pro Customizer</a>
+      <div class="d-flex flex-wrap gap-2">
+        <button id="btnChooseDress" class="btn btn-outline-light pill"><i class="fa-solid fa-shirt"></i> Choose Dress</button>
+        <button id="btnDesigns" class="btn btn-outline-info pill"><i class="fa-solid fa-layer-group"></i> Designs</button>
+        <button id="btnAddText" class="btn btn-warning pill"><i class="fa-solid fa-text-width"></i> Add Text</button>
+        <div class="btn-group">
+          <button id="btnExportBoth" class="btn btn-success pill"><i class="fa-solid fa-file-export"></i> Export Both</button>
+          <button id="btnExportFront" class="btn btn-outline-success pill"><i class="fa-solid fa-download"></i> Front</button>
+          <button id="btnExportBack" class="btn btn-outline-success pill"><i class="fa-solid fa-download"></i> Back</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-3">
+    <div class="workspace">
+      <!-- STAGE AREA -->
+      <section class="stage-card rounded-4 p-3 position-relative">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="toolbar-chip">
+            <i class="fa-solid fa-palette me-1"></i>
+            <input id="baseColor" type="color" class="form-control form-control-color" title="Garment color" value="#ffffff" />
+            <select id="shadeMode" class="form-select form-select-sm ms-2" style="width: 180px; background:#0b1030; color:#e6e9ff; border-color:#2a2f66">
+              <option value="multiply" selected>Natural shading (Multiply)</option>
+              <option value="none">Flat color</option>
+            </select>
+          </div>
+          <div class="toolbar-chip">
+            <i class="fa-solid fa-bullseye me-1"></i>
+            Active: <span id="activeSideLabel" class="fw-semibold ms-1">Front</span>
+          </div>
+        </div>
+
+        <div class="stage-boards">
+          <div class="board checker" id="boardFront">
+            <span class="side-label">Front</span>
+            <div class="spinner-center d-none" id="loadingFront"><div class="spinner-border text-info" role="status"></div></div>
+            <canvas id="canvasFront"></canvas>
+          </div>
+          <div class="board checker" id="boardBack">
+            <span class="side-label">Back</span>
+            <div class="spinner-center d-none" id="loadingBack"><div class="spinner-border text-info" role="status"></div></div>
+            <canvas id="canvasBack"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT PANEL -->
+      <aside class="panel-card rounded-4 p-3">
+        <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="pills-front-tab" data-bs-toggle="pill" data-bs-target="#pills-front" type="button" role="tab">Front Layers</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pills-back-tab" data-bs-toggle="pill" data-bs-target="#pills-back" type="button" role="tab">Back Layers</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="pills-tabContent">
+          <!-- FRONT TAB -->
+          <div class="tab-pane fade show active" id="pills-front" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="m-0">Front Layers <span class="badge text-bg-secondary badge-side ms-1" id="layerCountFront">0</span></h5>
+              <div class="btn-group">
+                <button class="btn btn-outline-light btn-sm" data-layer-action="up" data-side="front" title="Bring forward"><i class="fa-solid fa-arrow-up"></i></button>
+                <button class="btn btn-outline-light btn-sm" data-layer-action="down" data-side="front" title="Send backward"><i class="fa-solid fa-arrow-down"></i></button>
+                <button class="btn btn-outline-danger btn-sm" data-layer-action="delete" data-side="front" title="Delete layer"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            <div class="list-scroll" id="layerListFront"></div>
+          </div>
+
+          <!-- BACK TAB -->
+          <div class="tab-pane fade" id="pills-back" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h5 class="m-0">Back Layers <span class="badge text-bg-secondary badge-side ms-1" id="layerCountBack">0</span></h5>
+              <div class="btn-group">
+                <button class="btn btn-outline-light btn-sm" data-layer-action="up" data-side="back" title="Bring forward"><i class="fa-solid fa-arrow-up"></i></button>
+                <button class="btn btn-outline-light btn-sm" data-layer-action="down" data-side="back" title="Send backward"><i class="fa-solid fa-arrow-down"></i></button>
+                <button class="btn btn-outline-danger btn-sm" data-layer-action="delete" data-side="back" title="Delete layer"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            <div class="list-scroll" id="layerListBack"></div>
+          </div>
+        </div>
+
+        <hr class="text-secondary" />
+
+        <!-- IMAGE DESIGN INSPECTOR (unchanged) -->
+        <div id="designInspector" class="d-none">
+          <div class="d-flex align-items-center justify-content-between">
+            <h6 class="text-uppercase text-secondary mb-2">Selected Design Controls</h6>
+            <span class="badge text-bg-dark" id="activeSideBadge">Front</span>
+          </div>
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label small">Tint</label>
+              <div class="input-group input-group-sm">
+                <input type="color" id="designTint" class="form-control form-control-color" value="#ffffff" />
+                <button class="btn btn-outline-secondary" id="toggleTint"><i class="fa-solid fa-droplet"></i></button>
+              </div>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Scale</label>
+              <input type="range" min="10" max="300" value="100" id="designScale" class="form-range" />
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Rotation</label>
+              <input type="range" min="-180" max="180" value="0" id="designRotate" class="form-range" />
+            </div>
+            <div class="col-6 d-grid">
+              <button class="btn btn-outline-light" id="flipH"><i class="fa-solid fa-arrows-left-right"></i> Flip H</button>
+            </div>
+            <div class="col-6 d-grid">
+              <button class="btn btn-outline-light" id="flipV"><i class="fa-solid fa-arrows-up-down"></i> Flip V</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEXT INSPECTOR -->
+        <div id="textInspector" class="d-none">
+          <div class="d-flex align-items-center justify-content-between">
+            <h6 class="text-uppercase text-secondary mb-2">Selected Text Controls</h6>
+            <span class="badge text-bg-dark" id="textSideBadge">Front</span>
+          </div>
+
+          <div class="mb-2">
+            <label class="control-label">Content (supports new lines)</label>
+            <textarea id="textContent" class="form-control form-control-sm" placeholder="Type your text here"></textarea>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-8">
+              <label class="control-label">Font</label>
+              <select id="textFont" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-4">
+              <label class="control-label">Size</label>
+              <input id="textSize" type="number" min="6" max="300" value="64" class="form-control form-control-sm" />
+            </div>
+
+            <div class="col-6">
+              <label class="control-label">Fill</label>
+              <input id="textColor" type="color" value="#ffffff" class="form-control form-control-color" />
+            </div>
+            <div class="col-6">
+              <label class="control-label">Letter Spacing</label>
+              <input id="textLetter" type="range" min="-10" max="40" value="0" class="form-range" />
+            </div>
+
+            <div class="col-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="textBold">
+                <label class="form-check-label" for="textBold">Bold</label>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="textItalic">
+                <label class="form-check-label" for="textItalic">Italic</label>
+              </div>
+            </div>
+            <div class="col-4">
+              <label class="control-label">Align</label>
+              <select id="textAlign" class="form-select form-select-sm">
+                <option value="center" selected>Center</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+
+            <div class="col-6">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Stroke</span>
+                <input id="textStrokeWidth" type="number" min="0" max="20" value="0" class="form-control">
+                <input id="textStrokeColor" type="color" value="#000000" class="form-control form-control-color" />
+              </div>
+            </div>
+
+            <div class="col-6">
+              <label class="control-label">Curved Radius (px)</label>
+              <input id="textRadius" type="number" min="0" max="2000" value="0" class="form-control form-control-sm" />
+              <div class="form-text text-secondary">0 = straight text</div>
+            </div>
+
+            <div class="col-12">
+              <label class="control-label">Rotation</label>
+              <input id="textRotate" type="range" min="-180" max="180" value="0" class="form-range" />
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-secondary mt-3" role="alert">
+          Pro tip: Click a canvas to make it active. Drag to move. Mouse wheel = scale. Hold <kbd>R</kbd> then drag = rotate. <kbd>Delete</kbd> to delete (Backspace does nothing), Arrow keys to nudge.
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- DRESS PICKER MODAL -->
+  <div class="modal fade" id="dressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content bg-dark text-light border border-1 border-secondary rounded-4">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-shirt me-2 text-info"></i>Choose Dress</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="thumb p-3" data-garment="tshirt" role="button">
+                <img src="https://i.postimg.cc/MGrj5xRx/front-and-back-one.png" alt="White T-Shirt (front+back in one PNG)" class="w-100"/>
+                <div class="pt-2 small text-muted">Single transparent PNG: <strong>front left</strong>, <strong>back right</strong>.</div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="thumb p-3" data-garment="hoodie" role="button">
+                <img src="./assets/base/white-hoodie.png" alt="White Hoodie (front+back in one PNG)" class="w-100"/>
+                <div class="pt-2 small text-muted">Hoodie PNG with <strong>front left</strong> and <strong>back right</strong>.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESIGNS MODAL -->
+  <div class="modal fade" id="designsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+      <div class="modal-content bg-dark text-light border border-1 border-secondary rounded-4">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa-solid fa-layer-group me-2 text-info"></i>Add Designs</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-lg-8">
+              <div class="row g-3" id="designGallery"></div>
+            </div>
+            <div class="col-lg-4">
+              <div class="p-3 border rounded-3 border-secondary h-100">
+                <h6>Upload your own</h6>
+                <input type="file" accept="image/*" id="uploadDesign" class="form-control" />
+                <p class="small text-secondary mt-2">PNG with transparent background recommended. Max 20MB.</p>
+                <div class="form-check mt-3">
+                  <input class="form-check-input" type="checkbox" value="1" id="addToBothSides">
+                  <label class="form-check-label" for="addToBothSides">Duplicate to both front & back</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div class="me-auto small text-secondary"><i class="fa-solid fa-circle-info me-1"></i>Click a thumbnail (or its checkbox) to add it. Multiple selection supported.</div>
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1080">
+    <div id="toast" class="toast text-bg-dark border border-secondary" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="toast-body" id="toastBody"></div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+  /* =============================================================
+   *  PRO DRESS CUSTOMIZER — Text Tool + External Fonts
+   *  - Image layers + Text layers (drag/scale/rotate)
+   *  - Multiline text, bold/italic, align, letter-spacing
+   *  - Stroke/outline, curved text (radius)
+   *  - Backspace will NOT delete; only Delete key
+   *  - Fonts loaded from ./fonts.json and @font-face injected
+   * ============================================================= */
+
+  // ----------------------------- Utilities -----------------------------
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const toastEl = new bootstrap.Toast($('#toast'), {delay: 2000});
+  const toast = (msg)=>{ $('#toastBody').textContent = msg; toastEl.show(); };
+  const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+  const TAU = Math.PI*2, toRad = d => d*Math.PI/180, toDeg = r => r*180/Math.PI;
+
+  const PATHS = { tshirt: 'https://i.postimg.cc/MGrj5xRx/front-and-back-one.png', hoodie: './assets/base/white-hoodie.png' };
+  const DESIGN_DEFAULTS=[
+    {src:'https://i.postimg.cc/WtR3K1bL/android-modified.png', name:'Black Tiger'},
+    {src:'https://i.postimg.cc/4Ntb3Kcc/black-tiger.png', name:'Android'},
+    {src:'https://i.postimg.cc/Mpm7yhdK/color-tiger.png', name:'Color Tiger'},
+    {src:'https://i.postimg.cc/0ysGK8GB/tree.png', name:'Tree'}
+  ];
+
+  function loadImage(src){
+    return new Promise((resolve,reject)=>{ const img=new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=src; });
+  }
+  function loadJSON(url){ return fetch(url).then(r=>{ if(!r.ok) throw new Error('loadJSON failed'); return r.json(); }); }
+
+  // ----------------------------- State -----------------------------
+  const state = {
+    garment: null, img: null,
+    halves: {front:null, back:null}, fit: {front:null, back:null},
+    baseColor:'#ffffff', shadeMode:'multiply',
+
+    boards: {
+      front: { canvas: $('#canvasFront'), ctx: $('#canvasFront').getContext('2d'), dpr: window.devicePixelRatio||1, w: 600, h: 750 },
+      back:  { canvas: $('#canvasBack'),  ctx: $('#canvasBack').getContext('2d'),  dpr: window.devicePixelRatio||1, w: 600, h: 750 },
+    },
+
+    activeSide:'front',
+    designs: { front: [], back: [] }, // each item: {type:'image'|'text', ...}
+    selectedId: null,
+
+    fonts: [] // from fonts.json
+  };
+
+  let idSeq = 1;
+  function newImageDesign(img, name){
+    const b = state.boards[state.activeSide];
+    const base = Math.min(b.w,b.h)*0.35;
+    return { id:idSeq++, type:'image', name:name||'Design', img, side: state.activeSide,
+      x: b.w/2, y: b.h/2, scale:1, rot:0, w:base, h: base*(img.height/img.width), flipH:false, flipV:false, tintOn:false, tint:'#ffffff' };
+  }
+
+  function newTextDesign(){
+    const b = state.boards[state.activeSide];
+    return {
+      id:idSeq++, type:'text', side:state.activeSide, name:'Text',
+      x:b.w/2, y:b.h/2, scale:1, rot:0,
+      text:'Your text\nhere',
+      color:'#ffffff', size:64, font:'System UI',
+      bold:false, italic:false, letter:0, align:'center',
+      strokeWidth:0, strokeColor:'#000000',
+      radius:0 // 0 = straight, >0 = curved radius in px
+    };
+  }
+
+  // ----------------------------- Canvas helpers -----------------------------
+  function fitContain(sw, sh, dw, dh){ const s = Math.min(dw/sw, dh/sh); const w=sw*s, h=sh*s; return { dx:(dw-w)/2, dy:(dh-h)/2, dw:w, dh:h }; }
+  function setActiveSide(side){ state.activeSide = side; $('#activeSideLabel').textContent = side==='front'?'Front':'Back'; $('#activeSideBadge').textContent = $('#activeSideLabel').textContent; $('#textSideBadge').textContent=$('#activeSideLabel').textContent; }
+  function getActive(){ if(!state.selectedId) return null; const list = state.designs[state.activeSide]; return list.find(d=>d.id===state.selectedId)||null; }
+
+  function ensureCanvasSize(){
+    for(const side of ['front','back']){
+      const b = state.boards[side];
+      const cssW = b.canvas.parentElement.clientWidth;
+      const cssH = cssW*5/4;
+      b.w = Math.round(cssW);
+      b.h = Math.round(cssH);
+      b.canvas.width  = Math.round(b.w * b.dpr);
+      b.canvas.height = Math.round(b.h * b.dpr);
+      b.ctx.setTransform(b.dpr,0,0,b.dpr,0,0);
+    }
+  }
+
+  // ----------------------------- Garment loading -----------------------------
+  async function chooseGarment(kind){
+    $('#loadingFront').classList.remove('d-none'); $('#loadingBack').classList.remove('d-none');
+    state.garment = kind; state.img = await loadImage(PATHS[kind]);
+    const img = state.img; const halfW = Math.floor(img.width/2);
+    state.halves.front = {sx:0, sy:0, sw:halfW, sh:img.height};
+    state.halves.back  = {sx:halfW, sy:0, sw:halfW, sh:img.height};
+    computeFit();
+    $('#loadingFront').classList.add('d-none'); $('#loadingBack').classList.add('d-none');
+    draw('front'); draw('back');
+    toast(kind==='tshirt' ? 'Loaded T-Shirt (front & back).' : 'Loaded Hoodie (front & back).');
+  }
+  function computeFit(){ ensureCanvasSize(); for(const side of ['front','back']){ const b = state.boards[side]; const crop = state.halves[side]; state.fit[side] = fitContain(crop.sw, crop.sh, b.w, b.h); } }
+
+  // ----------------------------- Rendering -----------------------------
+  function draw(side, {forExport=false}={}){
+    const b = state.boards[side]; const ctx=b.ctx; const {w,h} = b; ctx.save();
+    ctx.clearRect(0,0,w,h);
+    if(!state.img){ ctx.restore(); return; }
+    const crop = state.halves[side]; const fit = state.fit[side];
+
+    // Garment recolor & shading
+    ctx.fillStyle = state.baseColor; ctx.fillRect(0,0,w,h);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(state.img, crop.sx, crop.sy, crop.sw, crop.sh, fit.dx, fit.dy, fit.dw, fit.dh);
+    if(state.shadeMode==='multiply'){
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(state.img, crop.sx, crop.sy, crop.sw, crop.sh, fit.dx, fit.dy, fit.dw, fit.dh);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Designs -> offscreen then clip to garment
+    const off = document.createElement('canvas'); off.width=w; off.height=h; const octx=off.getContext('2d');
+
+    for(const d of state.designs[side]){
+      if(d.type==='image'){
+        octx.save(); octx.translate(d.x, d.y); octx.rotate(d.rot); octx.scale(d.flipH?-1:1, d.flipV?-1:1);
+        const dw=d.w*d.scale, dh=d.h*d.scale; octx.drawImage(d.img, -dw/2, -dh/2, dw, dh);
+        if(d.tintOn){ octx.globalCompositeOperation='source-atop'; octx.fillStyle=d.tint; octx.fillRect(-dw/2, -dh/2, dw, dh); octx.globalCompositeOperation='source-over'; }
+        octx.restore();
+      } else if(d.type==='text'){
+        drawTextDesign(octx, d);
+      }
+    }
+
+    // clip to garment shape
+    octx.globalCompositeOperation='destination-in';
+    octx.drawImage(state.img, crop.sx, crop.sy, crop.sw, crop.sh, fit.dx, fit.dy, fit.dw, fit.dh);
+    ctx.drawImage(off,0,0);
+
+    // Selection box
+    if(!forExport && state.selectedId){
+      const sel = state.designs[side].find(x=>x.id===state.selectedId);
+      if(sel) drawSelection(ctx, sel);
+    }
+
+    ctx.restore();
+  }
+
+  function drawSelection(ctx, d){
+    ctx.save();
+    ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+    const box = getDesignBox(d);
+    ctx.strokeStyle='#6ee7ff'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+    ctx.strokeRect(-box.w/2, -box.h/2, box.w, box.h);
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function redrawBoth(){ draw('front'); draw('back'); }
+
+  // --- Text rendering (straight & curved) ---
+  function applyCanvasFont(ctx, d){
+    const w = d.bold ? '700' : '400';
+    const s = `${d.italic?'italic ':''}${w} ${Math.round(d.size*d.scale)}px "${d.font}", system-ui, Arial, sans-serif`;
+    ctx.font = s;
+    ctx.textAlign = d.align;
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  function getDesignBox(d){
+    if(d.type==='image') return {w:d.w*d.scale, h:d.h*d.scale};
+    // approximate text box (straight: based on longest line; curved: diameter band)
+    const tmp = document.createElement('canvas').getContext('2d');
+    applyCanvasFont(tmp, {...d, scale:1}); // base font size without global scale
+    const lines = d.text.split('\n');
+    let maxW = 0; for(const line of lines){ maxW = Math.max(maxW, measureLineWidth(tmp, line, d.letter)); }
+    const ascent = tmp.measureText('M').actualBoundingBoxAscent || d.size*0.8;
+    const descent = tmp.measureText('g').actualBoundingBoxDescent || d.size*0.2;
+    const lh = (ascent+descent)*1.2;
+    let h = lh*lines.length;
+    let w = maxW + Math.abs(d.letter)* (lines.length? (lines[0].length-1):0);
+    if(d.radius>0){ const diam = (d.radius + ascent + 4) * 2; w = diam; h = diam; }
+    return {w:w*d.scale, h:h*d.scale};
+  }
+
+  function measureLineWidth(ctx, text, letter){
+    // sum character widths + letter spacing
+    let width = 0;
+    for(const ch of text){ width += ctx.measureText(ch).width + letter; }
+    if(text.length>0) width -= letter; // no extra after last char
+    return width;
+  }
+
+  function drawStraightLine(ctx, d, line, lineIndex, linesCount, ascent){
+    const lh = (ascent*1.2); // simple line height
+    let x = d.x, y = d.y + (lineIndex - (linesCount-1)/2) * lh * d.scale; // center vertically
+    // alignment offset
+    const baseCtx = ctx;
+    const tmp = document.createElement('canvas').getContext('2d');
+    applyCanvasFont(tmp, {...d, scale:1});
+    const lineW = measureLineWidth(tmp, line, d.letter);
+    let alignShift = 0;
+    if(d.align==='center') alignShift = 0;
+    if(d.align==='left')   alignShift =  (getDesignBox(d).w/2 - lineW*d.scale);
+    if(d.align==='right')  alignShift = -(getDesignBox(d).w/2 - lineW*d.scale);
+    x += alignShift;
+
+    // draw stroke then fill with letter spacing
+    baseCtx.save();
+    baseCtx.translate(x, y);
+    baseCtx.rotate(d.rot);
+    baseCtx.fillStyle = d.color;
+    if(d.strokeWidth>0){ baseCtx.lineWidth = d.strokeWidth; baseCtx.strokeStyle = d.strokeColor; }
+    let penX = 0;
+    for(const ch of line){
+      if(d.strokeWidth>0) baseCtx.strokeText(ch, penX, 0);
+      baseCtx.fillText(ch, penX, 0);
+      penX += baseCtx.measureText(ch).width + d.letter;
+    }
+    baseCtx.restore();
+  }
+
+  function drawCurvedText(ctx, d){
+    // Render along a circle of radius d.radius centered at d.x,d.y
+    // We center text around angle 0 (pointing right), and rotate whole design by d.rot
+    const tmp = document.createElement('canvas').getContext('2d');
+    applyCanvasFont(tmp, {...d, scale:1});
+    const lines = d.text.split('\n');
+    const ascent = tmp.measureText('M').actualBoundingBoxAscent || d.size*0.8;
+    const r = d.radius;
+    const lineGap = ascent*1.2; // distance between arcs
+    const startR = r - ((lines.length-1)/2)*lineGap; // center stack around r
+
+    for(let li=0; li<lines.length; li++){
+      const line = lines[li];
+      const rr = startR + li*lineGap;
+      // measure total angle
+      const charAngles = [];
+      let totalAngle = 0;
+      for(const ch of line){
+        const w = tmp.measureText(ch).width + d.letter;
+        const ang = w / rr;
+        charAngles.push(ang);
+        totalAngle += ang;
+      }
+      let angle = -totalAngle/2; // center around 0
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.rotate(d.rot);
+      for(let i=0;i<line.length;i++){
+        const ch = line[i];
+        const half = charAngles[i]/2;
+        angle += half;
+        ctx.save();
+        ctx.rotate(angle);
+        ctx.translate(rr*d.scale, 0);
+        ctx.rotate(Math.PI/2); // upright
+        ctx.scale(d.scale, d.scale);
+        ctx.fillStyle = d.color;
+        if(d.strokeWidth>0){ ctx.lineWidth = d.strokeWidth; ctx.strokeStyle = d.strokeColor; }
+        if(d.strokeWidth>0) ctx.strokeText(ch, 0, 0);
+        ctx.fillText(ch, 0, 0);
+        ctx.restore();
+        angle += half;
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawTextDesign(ctx, d){
+    ctx.save();
+    applyCanvasFont(ctx, d);
+    if(d.radius>0){
+      drawCurvedText(ctx, d);
+    } else {
+      const tmp = document.createElement('canvas').getContext('2d');
+      applyCanvasFont(tmp, {...d, scale:1});
+      const lines = d.text.split('\n');
+      const ascent = tmp.measureText('M').actualBoundingBoxAscent || d.size*0.8;
+      for(let i=0;i<lines.length;i++){
+        drawStraightLine(ctx, d, lines[i], i, lines.length, ascent);
+      }
+    }
+    ctx.restore();
+  }
+
+  // ----------------------------- Interaction -----------------------------
+  function pointerToCanvas(e, side){
+    const b = state.boards[side]; const rect = b.canvas.getBoundingClientRect();
+    const scaleX = b.canvas.width / rect.width; const scaleY = b.canvas.height / rect.height;
+    return { x:(e.clientX-rect.left)*scaleX, y:(e.clientY-rect.top)*scaleY };
+  }
+
+  function selectDesignByHit(pt, side){
+    const list = state.designs[side];
+    for(let i=list.length-1;i>=0;i--){
+      const d=list[i];
+      const s=Math.sin(d.rot), c=Math.cos(d.rot);
+      let x=pt.x-d.x, y=pt.y-d.y;
+      const ix=( x*c + y*s)/ (d.scale);
+      const iy=(-x*s + y*c)/ (d.scale);
+      const box = getDesignBox({...d, scale:1});
+      if(ix>=-box.w/2 && ix<=box.w/2 && iy>=-box.h/2 && iy<=box.h/2){
+        state.selectedId=d.id; setActiveSide(side); return d;
+      }
+    }
+    state.selectedId=null; return null;
+  }
+
+  let dragging=false; let dragOff={x:0,y:0}; let rotating=false; let startAngle=0; let startRot=0;
+
+  for(const side of ['front','back']){
+    const c = state.boards[side].canvas;
+
+    c.addEventListener('mousedown', (e)=>{
+      const pt = pointerToCanvas(e, side);
+      setActiveSide(side);
+      const hit = selectDesignByHit(pt, side);
+      if(hit){ dragging=true; dragOff.x = pt.x - hit.x; dragOff.y = pt.y - hit.y; draw(side); refreshLayerList(side); updateInspectors(); }
+      else { state.selectedId=null; updateInspectors(); draw(side); }
+    });
+
+    c.addEventListener('mousemove', (e)=>{
+      if(!dragging && !rotating) return;
+      const d = getActive(); if(!d) return;
+      const pt = pointerToCanvas(e, side);
+      if(rotating){
+        const ang = Math.atan2(pt.y-d.y, pt.x-d.x); d.rot = ang - startAngle + startRot; draw(side); refreshLayerList(side); return;
+      }
+      d.x = pt.x - dragOff.x; d.y = pt.y - dragOff.y; draw(side); refreshLayerList(side);
+    });
+  }
+
+  window.addEventListener('mouseup', ()=>{ if(dragging||rotating){ dragging=false; rotating=false; pushHistory(state.activeSide); } });
+
+  // Rotate while holding R during drag
+  window.addEventListener('keydown', (e)=>{
+    // Do not hijack keys while typing in text area
+    const typing = document.activeElement === $('#textContent');
+
+    if((e.key==='r' || e.key==='R') && !typing){
+      const d = getActive(); if(!d || rotating) return; if(!dragging) return;
+      const pt = {x:d.x + 1, y:d.y};
+      startAngle = Math.atan2(pt.y-d.y, pt.x-d.x); startRot=d.rot; rotating=true; dragging=false;
+    }
+
+    // Delete ONLY. Backspace is ignored by design.
+    if((e.key==='Delete') && !typing){
+      const list = state.designs[state.activeSide]; const idx=list.findIndex(x=>x.id===state.selectedId);
+      if(idx>-1){ list.splice(idx,1); state.selectedId=null; updateInspectors(); draw(state.activeSide); refreshLayerList(state.activeSide); pushHistory(state.activeSide); }
+    }
+
+    // Arrow nudge (skip when typing)
+    if(!typing && ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+      const d=getActive(); if(!d) return; const step = e.shiftKey?10:1; if(e.key==='ArrowLeft') d.x-=step; if(e.key==='ArrowRight') d.x+=step; if(e.key==='ArrowUp') d.y-=step; if(e.key==='ArrowDown') d.y+=step; draw(state.activeSide); refreshLayerList(state.activeSide); pushHistory(state.activeSide);
+    }
+
+    // Undo/redo (skip when typing)
+    if(!typing && (e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ if(e.shiftKey) redo(state.activeSide); else undo(state.activeSide); }
+    if(!typing && (e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ redo(state.activeSide); }
+  });
+
+  // wheel to scale active design
+  for(const side of ['front','back']){
+    state.boards[side].canvas.addEventListener('wheel', (e)=>{
+      const d=getActive(); if(!d) return; e.preventDefault(); const k = e.deltaY<0?1.06:0.94; d.scale = clamp(d.scale*k, .1, 6); draw(side); refreshLayerList(side); pushHistory(side); }, {passive:false});
+  }
+
+  // ----------------------------- UI Wiring -----------------------------
+  $('#btnChooseDress').addEventListener('click', ()=> new bootstrap.Modal('#dressModal').show());
+  $('#btnDesigns').addEventListener('click', ()=> new bootstrap.Modal('#designsModal').show());
+  $('#btnAddText').addEventListener('click', ()=>{ const t=newTextDesign(); state.designs[state.activeSide].push(t); state.selectedId=t.id; updateInspectors(); refreshLayerList(state.activeSide); draw(state.activeSide); pushHistory(state.activeSide); });
+
+  $('#baseColor').addEventListener('input', (e)=>{ state.baseColor=e.target.value; redrawBoth(); pushHistory('front'); pushHistory('back'); });
+  $('#shadeMode').addEventListener('change', (e)=>{ state.shadeMode=e.target.value; redrawBoth(); pushHistory('front'); pushHistory('back'); });
+
+  // Layer actions
+  $$('#pills-tabContent').forEach(host=>{
+    host.addEventListener('click', (e)=>{
+      const btn=e.target.closest('[data-layer-action]'); if(!btn) return; const side=btn.getAttribute('data-side'); const list=state.designs[side]; const idx=list.findIndex(x=>x.id===state.selectedId && state.activeSide===side);
+      if(idx===-1) return;
+      const action=btn.getAttribute('data-layer-action');
+      if(action==='up'&& idx<list.length-1){ const [d]=list.splice(idx,1); list.splice(idx+1,0,d); }
+      if(action==='down'&& idx>0){ const [d]=list.splice(idx,1); list.splice(idx-1,0,d); }
+      if(action==='delete'){ list.splice(idx,1); state.selectedId=null; }
+      refreshLayerList(side); draw(side); pushHistory(side);
+    });
+  });
+
+  // ----- Image Inspector Controls -----
+  $('#designScale').addEventListener('input', (e)=>{ const d=getActive(); if(!d||d.type!=='image') return; d.scale=e.target.value/100; draw(d.side); refreshLayerList(d.side); });
+  $('#designRotate').addEventListener('input', (e)=>{ const d=getActive(); if(!d) return; d.rot=toRad(+e.target.value); draw(d.side); refreshLayerList(d.side); });
+  $('#designTint').addEventListener('input', (e)=>{ const d=getActive(); if(!d||d.type!=='image') return; d.tint=e.target.value; d.tintOn=true; draw(d.side); });
+  $('#toggleTint').addEventListener('click', ()=>{ const d=getActive(); if(!d||d.type!=='image') return; d.tintOn=!d.tintOn; draw(d.side); });
+  $('#flipH').addEventListener('click', ()=>{ const d=getActive(); if(!d||d.type!=='image') return; d.flipH=!d.flipH; draw(d.side); });
+  $('#flipV').addEventListener('click', ()=>{ const d=getActive(); if(!d||d.type!=='image') return; d.flipV=!d.flipV; draw(d.side); });
+
+  // ----- Text Inspector Controls -----
+  function bindTextControls(){
+    const map = {
+      '#textContent':'text', '#textFont':'font', '#textSize':'size',
+      '#textColor':'color', '#textLetter':'letter', '#textAlign':'align',
+      '#textStrokeWidth':'strokeWidth', '#textStrokeColor':'strokeColor',
+      '#textRadius':'radius'
+    };
+    for(const sel in map){
+      $(sel).addEventListener(sel==='#textContent'?'input':'change', e=>{
+        const d=getActive(); if(!d||d.type!=='text') return;
+        const key=map[sel]; let val = (sel==='#textSize'||sel==='#textStrokeWidth'||sel==='#textRadius') ? +e.target.value : e.target.value;
+        if(sel==='#textLetter') val = +e.target.value;
+        d[key]=val; draw(d.side); refreshLayerList(d.side);
+      });
+    }
+    $('#textBold').addEventListener('change', e=>{ const d=getActive(); if(!d||d.type!=='text') return; d.bold=e.target.checked; draw(d.side); });
+    $('#textItalic').addEventListener('change', e=>{ const d=getActive(); if(!d||d.type!=='text') return; d.italic=e.target.checked; draw(d.side); });
+    $('#textRotate').addEventListener('input', e=>{ const d=getActive(); if(!d||d.type!=='text') return; d.rot=toRad(+e.target.value); draw(d.side); refreshLayerList(d.side); });
+  }
+  bindTextControls();
+
+  function updateInspectors(){
+    const d = getActive();
+    // toggle panels
+    $('#designInspector').classList.toggle('d-none', !(d && d.type==='image'));
+    $('#textInspector').classList.toggle('d-none', !(d && d.type==='text'));
+    if(!d) return;
+    if(d.type==='image'){
+      $('#designScale').value = Math.round(d.scale*100);
+      $('#designRotate').value = Math.round(toDeg(d.rot));
+      $('#designTint').value=d.tint;
+      $('#activeSideBadge').textContent = d.side==='front'?'Front':'Back';
+    } else {
+      // sync text controls
+      $('#textSideBadge').textContent = d.side==='front'?'Front':'Back';
+      $('#textContent').value = d.text;
+      $('#textFont').value = d.font;
+      $('#textSize').value = d.size;
+      $('#textColor').value = d.color;
+      $('#textLetter').value = d.letter;
+      $('#textAlign').value = d.align;
+      $('#textStrokeWidth').value = d.strokeWidth;
+      $('#textStrokeColor').value = d.strokeColor;
+      $('#textRadius').value = d.radius;
+      $('#textRotate').value = Math.round(toDeg(d.rot));
+      $('#textBold').checked = d.bold;
+      $('#textItalic').checked = d.italic;
+    }
+    refreshLayerList(d.side);
+  }
+
+  function refreshLayerList(side){
+    const list=state.designs[side]; const host = side==='front'?$('#layerListFront'):$('#layerListBack'); host.innerHTML='';
+    list.forEach(d=>{
+      const row=document.createElement('div'); row.className='design-item mb-2 p-2 d-flex align-items-center gap-2 '+(d.id===state.selectedId&&state.activeSide===side?'active-design':'');
+      let preview;
+      if(d.type==='image'){ preview=document.createElement('img'); preview.src=d.img.src; preview.style.width='44px'; preview.style.height='44px'; preview.style.objectFit='contain'; preview.className='rounded'; }
+      else { preview=document.createElement('div'); preview.className='rounded d-grid align-items-center justify-content-center'; preview.style.width='44px'; preview.style.height='44px'; preview.style.background='#0b1133'; preview.style.fontSize='20px'; preview.textContent='T'; }
+      const title=document.createElement('div'); title.className='flex-grow-1 small';
+      title.innerHTML = d.type==='image'
+        ? `<div>${d.name}</div><div class="text-secondary">Scale ${Math.round(d.scale*100)}% • ${Math.round(toDeg(d.rot))}°</div>`
+        : `<div>Text</div><div class="text-secondary">${d.font} • ${d.size}px</div>`;
+      const btn=document.createElement('button'); btn.className='btn btn-sm btn-outline-light'; btn.innerHTML='<i class="fa-solid fa-bullseye"></i>';
+      btn.addEventListener('click', ()=>{ state.selectedId=d.id; setActiveSide(side); draw(side); updateInspectors(); });
+      row.appendChild(preview); row.appendChild(title); row.appendChild(btn); host.appendChild(row);
+    });
+    (side==='front'?$('#layerCountFront'):$('#layerCountBack')).textContent=list.length;
+  }
+
+  // ----------------------------- Designs Modal -----------------------------
+  function populateDesignGallery(){
+    const host = $('#designGallery'); host.innerHTML='';
+    DESIGN_DEFAULTS.forEach(d=>{
+      const col=document.createElement('div'); col.className='col-6 col-md-4 col-xl-3'; col.innerHTML=`
+        <label class="thumb w-100 d-block">
+          <input type="checkbox" class="form-check-input me-2" data-src="${d.src}" data-name="${d.name}" style="position:absolute; transform: translate(6px,6px);" />
+          <img src="${d.src}" alt="${d.name}"/>
+          <div class="small text-center pt-1 text-secondary">${d.name}</div>
+        </label>`;
+      host.appendChild(col);
+    });
+
+    host.addEventListener('click', async (e)=>{
+      const label = e.target.closest('label.thumb'); const img=e.target.closest('img'); const box=e.target.closest('input[type="checkbox"]');
+      if(img&&label){ const checkbox=label.querySelector('input[type="checkbox"]'); checkbox.checked=!checkbox.checked; const src=checkbox.dataset.src; const name=checkbox.dataset.name; await addDesignFromSrc(src, name); }
+      else if(box && box.checked){ await addDesignFromSrc(box.dataset.src, box.dataset.name); }
+    });
+  }
+
+  async function addDesignFromSrc(src, name){
+    const img = await loadImage(src); const d = newImageDesign(img, name); state.designs[state.activeSide].push(d);
+    if($('#addToBothSides').checked){ const other = state.activeSide==='front'?'back':'front'; const d2 = {...newImageDesign(img, name), side:other}; state.designs[other].push(d2); }
+    state.selectedId=d.id; updateInspectors(); refreshLayerList(state.activeSide); draw(state.activeSide); pushHistory(state.activeSide);
+  }
+
+  $('#uploadDesign').addEventListener('change', async (e)=>{
+    const file=e.target.files[0]; if(!file) return; if(file.size>20*1024*1024){ toast('File too large (max 20MB).'); return; }
+    const url=URL.createObjectURL(file); const img=await loadImage(url); const d=newImageDesign(img, file.name); state.designs[state.activeSide].push(d); state.selectedId=d.id; updateInspectors(); refreshLayerList(state.activeSide); draw(state.activeSide); pushHistory(state.activeSide); e.target.value=''; toast('Design added.');
+  });
+
+  // ----------------------------- Export -----------------------------
+  $('#btnExportFront').addEventListener('click', ()=>exportSide('front'));
+  $('#btnExportBack').addEventListener('click', ()=>exportSide('back'));
+  $('#btnExportBoth').addEventListener('click', exportBoth);
+
+  function renderSideTo(ctx, side){
+    const b=state.boards[side];
+    const crop=state.halves[side]; const fit=state.fit[side];
+
+    // Garment color clipped
+    ctx.fillStyle=state.baseColor; ctx.fillRect(0,0,b.w,b.h);
+    ctx.globalCompositeOperation='destination-in';
+    ctx.drawImage(state.img, crop.sx,crop.sy,crop.sw,crop.sh, fit.dx,fit.dy,fit.dw,fit.dh);
+    if(state.shadeMode==='multiply'){ ctx.globalCompositeOperation='multiply'; ctx.drawImage(state.img, crop.sx,crop.sy,crop.sw,crop.sh, fit.dx,fit.dy,fit.dw,fit.dh); }
+    ctx.globalCompositeOperation='source-over';
+
+    // Designs (clipped)
+    const designs=document.createElement('canvas'); designs.width=b.w; designs.height=b.h; const dctx=designs.getContext('2d');
+    for(const d of state.designs[side]){ if(d.type==='image'){ dctx.save(); dctx.translate(d.x,d.y); dctx.rotate(d.rot); const dw=getDesignBox(d).w, dh=getDesignBox(d).h; dctx.drawImage(d.img, -dw/2,-dh/2,dw,dh); if(d.tintOn){ dctx.globalCompositeOperation='source-atop'; dctx.fillStyle=d.tint; dctx.fillRect(-dw/2,-dh/2,dw,dh); dctx.globalCompositeOperation='source-over'; } dctx.restore(); } else { drawTextDesign(dctx, d); } }
+    dctx.globalCompositeOperation='destination-in'; dctx.drawImage(state.img, crop.sx,crop.sy,crop.sw,crop.sh, fit.dx,fit.dy,fit.dw,fit.dh);
+    ctx.drawImage(designs,0,0);
+  }
+
+  function exportSide(side){
+    const b=state.boards[side]; const off=document.createElement('canvas'); off.width=b.w; off.height=b.h; const octx=off.getContext('2d');
+    renderSideTo(octx, side);
+    const link=document.createElement('a'); const stamp=new Date().toISOString().replace(/[:.]/g,'-'); link.download=`custom-${state.garment}-${side}-${stamp}.png`; link.href=off.toDataURL('image/png'); link.click();
+  }
+
+  function exportBoth(){
+    const bf=state.boards.front, bb=state.boards.back;
+    const off=document.createElement('canvas'); off.width=bf.w+bb.w; off.height=Math.max(bf.h,bb.h); const octx=off.getContext('2d');
+
+    // left=front
+    const left=document.createElement('canvas'); left.width=bf.w; left.height=bf.h; renderSideTo(left.getContext('2d'),'front');
+    // right=back
+    const right=document.createElement('canvas'); right.width=bb.w; right.height=bb.h; renderSideTo(right.getContext('2d'),'back');
+
+    octx.drawImage(left,0,0); octx.drawImage(right,bf.w,0);
+    const link=document.createElement('a'); const stamp=new Date().toISOString().replace(/[:.]/g,'-'); link.download=`custom-${state.garment}-front-back-${stamp}.png`; link.href=off.toDataURL('image/png'); link.click();
+  }
+
+  // ----------------------------- Undo / Redo -----------------------------
+  const history={front:[], back:[], idx:{front:-1, back:-1}};
+  function snapshot(side){
+    return JSON.stringify({
+      designs: state.designs[side].map(d=> d.type==='image'
+        ? ({...d, imgSrc:d.img.src})
+        : ({...d})
+      ),
+      baseColor: state.baseColor, shadeMode: state.shadeMode
+    });
+  }
+  function restore(side, snap){
+    const data=JSON.parse(snap);
+    state.baseColor=data.baseColor; state.shadeMode=data.shadeMode;
+    state.designs[side]=[];
+    const imgItems = data.designs.filter(d=>d.type==='image');
+    const txtItems = data.designs.filter(d=>d.type==='text');
+    Promise.all(imgItems.map(x=>loadImage(x.imgSrc))).then(imgs=>{
+      imgs.forEach((img,i)=>{ const d=imgItems[i]; d.img=img; state.designs[side].push(d); });
+      txtItems.forEach(d=>state.designs[side].push(d));
+      redrawBoth(); refreshLayerList(side); updateInspectors();
+    });
+  }
+  function pushHistory(side){ const s=snapshot(side); const arr=history[side]; const i=++history.idx[side]; arr.splice(i); arr.push(s); }
+  function undo(side){ const i=history.idx[side]; if(i<=0) return; history.idx[side]--; restore(side, history[side][history.idx[side]]); }
+  function redo(side){ const i=history.idx[side]; if(i>=history[side].length-1) return; history.idx[side]++; restore(side, history[side][history.idx[side]]); }
+
+  // ----------------------------- Fonts (external list) -----------------------------
+  async function loadFonts(){
+    try{
+      const fonts = await loadJSON('./fonts.json'); // [{family,url}, ...]
+      state.fonts = fonts;
+      // inject @font-face for each
+      const style = document.createElement('style');
+      style.id = 'dynamic-fonts';
+      style.textContent = fonts.map(f => `
+        @font-face{
+          font-family: "${f.family}";
+          src: url("${f.url}") format("woff2");
+          font-weight: ${f.weight||'400'};
+          font-style: normal;
+          font-display: swap;
+        }
+      `).join('\n');
+      document.head.appendChild(style);
+      // populate dropdown
+      const select = $('#textFont'); select.innerHTML='';
+      const optionSystem = document.createElement('option'); optionSystem.value='System UI'; optionSystem.textContent='System UI'; select.appendChild(optionSystem);
+      fonts.forEach(f=>{ const o=document.createElement('option'); o.value=f.family; o.textContent=f.family; select.appendChild(o); });
+    }catch(err){ console.warn('fonts.json not found or invalid — defaulting to system fonts.', err); const select=$('#textFont'); select.innerHTML='<option value="System UI">System UI</option>'; }
+  }
+
+  // ----------------------------- Boot -----------------------------
+  function onResize(){ ensureCanvasSize(); computeFit(); redrawBoth(); }
+  window.addEventListener('resize', onResize);
+
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    ensureCanvasSize(); populateDesignGallery(); await loadFonts();
+    new bootstrap.Modal('#dressModal').show();
+    $$('#dressModal [data-garment]').forEach(el=>{ el.addEventListener('click', async ()=>{ await chooseGarment(el.dataset.garment); bootstrap.Modal.getInstance($('#dressModal')).hide(); pushHistory('front'); pushHistory('back'); });});
+  });
+  </script>
+</body>
+</html>
